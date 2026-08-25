@@ -1,13 +1,15 @@
+from typing import Any
 import uuid
 
+from fastapi import HTTPException
 from passlib.context import CryptContext
 from datetime import timedelta, datetime, timezone
-import jwt
 from decouple import config
 
 from app.accounts.schema import UserOut
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.accounts.models import RefreshToken
+from jose import jwt, ExpiredSignatureError, JWTError
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET = config("JWT_SECRET")
@@ -24,13 +26,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict, expires: timedelta = None) -> str:
     to_encode = data.copy()
-    expires = datetime.now(timezone.utc) + (expires or timedelta(minutes=15))
+    expires = datetime.now(timezone.utc) + (expires or timedelta(minutes=60))
     to_encode.update({"exp": expires})
     return jwt.encode(to_encode, JWT_SECRET, JWT_ALGORITHM)
 
 
 async def create_token(session: AsyncSession, user: UserOut):
-    access_token = create_access_token(data={"sub": user.id})
+    access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token_str = str(uuid.uuid4())
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     refresh_token = RefreshToken(
@@ -43,3 +45,12 @@ async def create_token(session: AsyncSession, user: UserOut):
         "refresh_token": refresh_token_str,
         "token_type": "bearer",
     }
+
+
+def decode_token(access_token: str) -> dict[str, Any]:
+    try:
+        return jwt.decode(access_token, JWT_SECRET, algorithms=JWT_ALGORITHM)
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")

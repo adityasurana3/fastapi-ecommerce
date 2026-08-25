@@ -35,12 +35,12 @@ async def login_user(session: AsyncSession, username: str, password: str) -> str
     return access_token
 
 
-async def authenticate_user(session: AsyncSession, email: str, password: str) -> User:
-    if email is None or password is None:
+async def authenticate_user(session: AsyncSession, user: User) -> User:
+    if user.email is None or user.password is None:
         raise HTTPException("Email and password should be provided")
-    stmt = select(User).where(User.email == email)
+    stmt = select(User).where(User.email == user.email)
     result = await session.scalars(stmt)
     user = result.first()
-    if not user and not verify_password(password, user.hashed_password):
+    if not user and not verify_password(user.password, user.hashed_password):
         return None
     return user

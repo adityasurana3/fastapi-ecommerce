@@ -15,3 +15,8 @@ class UserCreate(UserBase):
 class UserOut(UserBase):
     id: int
     model_config = {"from_attribute": True}
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
