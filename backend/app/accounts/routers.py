@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from app.accounts.schema import UserCreate, UserOut, UserLogin
 from app.db.config import SessionDep
-from app.accounts.services import user_create, authenticate_user
-from app.accounts.utils import create_token
+from app.accounts.services import user_create, authenticate_user, verify_refresh_token
+from app.accounts.utils import create_response_cookie, create_token
 from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 
@@ -44,3 +44,21 @@ async def login(session: SessionDep, user: UserLogin) -> JSONResponse:
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)) -> UserOut:
     return user
+
+
+@router.post("/refresh")
+async def refresh_token(session: SessionDep, request: Request):
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Refresh Token"
+        )
+    user = await verify_refresh_token(session, refresh_token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+    tokens = await create_token(session, user)
+    response = JSONResponse({"message": "Token refreshed"})
+    return create_response_cookie(response, tokens)

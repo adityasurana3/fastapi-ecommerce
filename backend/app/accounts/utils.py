@@ -2,6 +2,7 @@ from typing import Any
 import uuid
 
 from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from passlib.context import CryptContext
 from datetime import timedelta, datetime, timezone
 from decouple import config
@@ -26,7 +27,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict, expires: timedelta = None) -> str:
     to_encode = data.copy()
-    expires = datetime.now(timezone.utc) + (expires or timedelta(minutes=60))
+    expires = datetime.now(timezone.utc) + (expires or timedelta(seconds=60))
     to_encode.update({"exp": expires})
     return jwt.encode(to_encode, JWT_SECRET, JWT_ALGORITHM)
 
@@ -54,3 +55,25 @@ def decode_token(access_token: str) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="Token has expired")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def create_response_cookie(
+    response: JSONResponse, tokens: dict[str, str]
+) -> JSONResponse:
+    response.set_cookie(
+        key="access_token",
+        value=tokens["access_token"],
+        httponly=True,
+        secure=True,
+        samesite="Lax",
+        max_age=60 * 60 * 21 * 1,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens["refresh_token"],
+        httponly=True,
+        secure=True,
+        samesite="Lax",
+        max_age=60 * 60 * 21 * 1,
+    )
+    return response

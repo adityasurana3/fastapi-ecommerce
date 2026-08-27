@@ -1,5 +1,7 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.accounts.models import User
+from app.accounts.models import User, RefreshToken
 from app.accounts.schema import UserCreate
 from sqlalchemy import select
 from fastapi import HTTPException, status
@@ -44,3 +46,18 @@ async def authenticate_user(session: AsyncSession, user: User) -> User:
     if not user and not verify_password(user.password, user.hashed_password):
         return None
     return user
+
+
+async def verify_refresh_token(session: AsyncSession, refresh_token: str) -> User | None:
+    stmt = select(RefreshToken).where(RefreshToken.tokens == refresh_token)
+    result = await session.scalars(stmt)
+    token = result.first()
+    if token and not token.revoked:
+        expires_at = token.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at > datetime.now(timezone.utc):
+            user_stmt = select(User).where(User.id == token.user_id)
+            user_result = await session.scalars(user_stmt)
+            return user_result.first()
+    return None
