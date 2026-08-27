@@ -48,7 +48,9 @@ async def authenticate_user(session: AsyncSession, user: User) -> User:
     return user
 
 
-async def verify_refresh_token(session: AsyncSession, refresh_token: str) -> User | None:
+async def verify_refresh_token(
+    session: AsyncSession, refresh_token: str
+) -> User | None:
     stmt = select(RefreshToken).where(RefreshToken.tokens == refresh_token)
     result = await session.scalars(stmt)
     token = result.first()
