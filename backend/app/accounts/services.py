@@ -11,7 +11,6 @@ from app.accounts.utils import (
     hash_password,
     verify_email_token_and_get_user,
     verify_password,
-    create_access_token,
 )
 
 
