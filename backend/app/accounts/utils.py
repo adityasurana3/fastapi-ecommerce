@@ -33,7 +33,7 @@ def create_access_token(data: dict, expires: timedelta = None) -> str:
 
 
 async def create_token(session: AsyncSession, user: UserOut):
-    access_token = create_access_token(data={"sub": str(user.id)})
+    access_token = create_access_token(data={"sub": str(user.id), "type": "access"})
     refresh_token_str = str(uuid.uuid4())
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     refresh_token = RefreshToken(
@@ -77,3 +77,16 @@ def create_response_cookie(
         max_age=60 * 60 * 21 * 1,
     )
     return response
+
+
+def create_email_verification_token(user_id: int) -> str:
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    to_encode = {"sub": str(user_id), "exp": expires_at, "type": "verify_email"}
+    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def verify_email_token_and_get_user(token: str, token_type: str) -> int:
+    payload = decode_token(token)
+    if not payload or payload.get("type") != token_type:
+        return None
+    return int(payload.get("sub"))

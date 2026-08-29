@@ -1,8 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from app.accounts.schema import UserCreate, UserOut, UserLogin
 from app.db.config import SessionDep
-from app.accounts.services import user_create, authenticate_user, verify_refresh_token
+from app.accounts.services import (
+    email_verification_send,
+    email_verify,
+    user_create,
+    authenticate_user,
+    verify_email_token,
+    verify_refresh_token,
+)
 from app.accounts.utils import create_response_cookie, create_token
 from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
@@ -10,8 +19,8 @@ from app.accounts.models import User
 router = APIRouter()
 
 
-@router.post("/register", response_model=UserOut)
-async def create_user(session: SessionDep, user: UserCreate) -> UserOut:
+@router.post("/register")
+async def create_user(session: SessionDep, user: UserCreate):
     return await user_create(session, user)
 
 
@@ -19,7 +28,7 @@ async def create_user(session: SessionDep, user: UserCreate) -> UserOut:
 async def login(session: SessionDep, user: UserLogin) -> JSONResponse:
     user = await authenticate_user(session, user)
     if not user:
-        return HTTPException(status_code=401, detail="Invalid credential")
+        raise HTTPException(status_code=401, detail="Invalid credential")
     tokens = await create_token(session, user)
     response = JSONResponse(content={"data": "Login Success"})
     response.set_cookie(
@@ -62,3 +71,14 @@ async def refresh_token(session: SessionDep, request: Request):
     tokens = await create_token(session, user)
     response = JSONResponse({"message": "Token refreshed"})
     return create_response_cookie(response, tokens)
+
+
+@router.post("/send-verification-email")
+async def send_verification_email(session: SessionDep, email: str):
+    user = await email_verify(session, email)
+    return await email_verification_send(user)
+
+
+@router.get("/verify-email")
+async def verify_email(session: SessionDep, token: Annotated[str, Query()]):
+    return await verify_email_token(session, token)
