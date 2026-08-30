@@ -1,6 +1,6 @@
 import string
 
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing_extensions import Self
 
 
@@ -26,9 +26,9 @@ class UserLogin(BaseModel):
 
 
 class ChangePassword(BaseModel):
-    current_password: str
-    new_password: str
-    confirm_password: str
+    current_password: str = Field(...)
+    new_password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
 
     @field_validator("new_password")
     @classmethod
@@ -42,6 +42,8 @@ class ChangePassword(BaseModel):
             raise ValueError("There should be small letter")
         if not any(char in string.punctuation for char in value):
             raise ValueError("Password must contains special character")
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must contains digits")
         return value
 
     @model_validator(mode="after")
