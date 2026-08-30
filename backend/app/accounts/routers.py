@@ -2,9 +2,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from app.accounts.schema import UserCreate, UserOut, UserLogin
+from app.accounts.schema import UserCreate, UserOut, UserLogin, ChangePassword
 from app.db.config import SessionDep
 from app.accounts.services import (
+    change_user_password,
     email_verification_send,
     email_verify,
     user_create,
@@ -82,3 +83,14 @@ async def send_verification_email(session: SessionDep, email: str):
 @router.get("/verify-email")
 async def verify_email(session: SessionDep, token: Annotated[str, Query()]):
     return await verify_email_token(session, token)
+
+
+@router.post("/change-password")
+async def change_password(
+    session: SessionDep,
+    password: ChangePassword,
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credential")
+    return await change_user_password(session, password, user)

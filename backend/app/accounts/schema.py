@@ -1,4 +1,7 @@
-from pydantic import BaseModel, EmailStr
+import string
+
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from typing_extensions import Self
 
 
 class UserBase(BaseModel):
@@ -20,3 +23,29 @@ class UserOut(UserBase):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+
+        if not any(char.isupper() for char in value):
+            raise ValueError("There should be capital letter")
+        if not any(char.islower() for char in value):
+            raise ValueError("There should be small letter")
+        if not any(char in string.punctuation for char in value):
+            raise ValueError("Password must contains special character")
+        return value
+
+    @model_validator(mode="after")
+    def validate_password(self) -> Self:
+        if self.confirm_password != self.new_password:
+            raise ValueError("Confirm and new password must be same")
+        return self

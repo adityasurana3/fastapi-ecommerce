@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.accounts.models import User, RefreshToken
-from app.accounts.schema import UserCreate, UserLogin
+from app.accounts.schema import ChangePassword, UserCreate, UserLogin
 from sqlalchemy import select
 from fastapi import HTTPException, status
 
@@ -102,3 +102,22 @@ async def email_verify(session: AsyncSession, email: str) -> User:
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     return user
+
+
+async def change_user_password(
+    session: AsyncSession, password: ChangePassword, user: User
+):
+    if not verify_password(password.current_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password did not match",
+        )
+    if password.confirm_password != password.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirm password and new password did not match",
+        )
+    user.hashed_password = hash_password(password.new_password)
+    session.add(user)
+    await session.commit()
+    return {"msg": "password changed successfully"}
