@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.accounts.models import User, RefreshToken
+from app.accounts.models import ResetToken, User, RefreshToken
 from app.accounts.schema import ChangePassword, UserCreate, UserLogin
 from sqlalchemy import select
 from fastapi import HTTPException, status
 
 from app.accounts.utils import (
     create_email_verification_token,
+    decode_token,
     hash_password,
     verify_email_token_and_get_user,
     verify_password,
@@ -132,31 +133,53 @@ async def reset_user_password(session: AsyncSession, email: str):
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     token = create_email_verification_token(user.id, "reset_token")
+    expires_at = datetime.fromtimestamp(decode_token(token)["exp"], tz=timezone.utc)
+    reset_token = ResetToken(token=token, user_id=user.id, expires_at=expires_at)
+    session.add(reset_token)
+    await session.commit()
     generate_link = f"http://127.0.0.1:8000/api/account/reset-password/{token}"
     print("Email verification token", generate_link)
     return {"msg": "Verification email sent"}
 
 
-async def verify_reset_password_token_email(
-    session: AsyncSession, token: str, password: str, confirm_password: str
-):
-    user_id = verify_email_token_and_get_user(token, "reset_token")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token"
-        )
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token"
-        )
-    stmt = select(User).where(User.id == user_id)
+async def verify_reset_token(session: AsyncSession, token: str):
+    stmt = select(ResetToken).where(ResetToken.token == token).with_for_update()
     result = await session.scalars(stmt)
-    user = result.first()
-    if not user:
+    db_token = result.first()
+    if not db_token:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Token not found"
         )
-    user.hashed_password = hash_password(password)
-    session.add(user)
-    await session.commit()
+    if db_token.expires_at <= datetime.now(timezone.utc) or db_token.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Token expired"
+        )
+    return db_token
+
+
+async def verify_reset_password_token_email(
+    session: AsyncSession, token: str, password: str
+):
+    try:
+        user_id = verify_email_token_and_get_user(token, "reset_token")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired token",
+            )
+        db_token = await verify_reset_token(session, token)
+        stmt = select(User).where(User.id == user_id)
+        result = await session.scalars(stmt)
+        user = result.first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+        user.hashed_password = hash_password(password)
+        db_token.used = True
+        await session.commit()
+
+    except Exception:
+        await session.rollback()
+        raise
     return {"msg": "Password changed successfully"}

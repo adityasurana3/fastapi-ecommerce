@@ -118,5 +118,5 @@ async def verify_reset_link(
     session: SessionDep, token: Annotated[str, Path()], password: ResetPassword
 ):
     return await verify_reset_password_token_email(
-        session, token, password.new_password, password.confirm_password
+        session, token, password.new_password
     )

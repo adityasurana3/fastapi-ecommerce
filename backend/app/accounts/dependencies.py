@@ -1,4 +1,4 @@
-from fastapi import Request, HTTPException, status
+from fastapi import Depends, Request, HTTPException, status
 
 from app.accounts.utils import decode_token
 from app.db.config import SessionDep
