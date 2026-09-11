@@ -79,9 +79,9 @@ def create_response_cookie(
     return response
 
 
-def create_email_verification_token(user_id: int) -> str:
+def create_email_verification_token(user_id: int, token_type: str) -> str:
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode = {"sub": str(user_id), "exp": expires_at, "type": "verify_email"}
+    to_encode = {"sub": str(user_id), "exp": expires_at, "type": token_type}
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 

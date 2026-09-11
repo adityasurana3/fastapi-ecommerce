@@ -68,7 +68,7 @@ async def verify_refresh_token(
 
 
 async def email_verification_send(user: User) -> dict[str, str]:
-    token = create_email_verification_token(user.id)
+    token = create_email_verification_token(user.id, "verify_email")
     link = f"http://127.0.0.1:8000/api/account/verify-email?token={token}"
     print("Email verification token", link)
     return {"msg": "Verification email sent"}
@@ -121,3 +121,42 @@ async def change_user_password(
     session.add(user)
     await session.commit()
     return {"msg": "password changed successfully"}
+
+
+async def reset_user_password(session: AsyncSession, email: str):
+    stmt = select(User).where(User.email == email)
+    result = await session.scalars(stmt)
+    user = result.first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    token = create_email_verification_token(user.id, "reset_token")
+    generate_link = f"http://127.0.0.1:8000/api/account/reset-password/{token}"
+    print("Email verification token", generate_link)
+    return {"msg": "Verification email sent"}
+
+
+async def verify_reset_password_token_email(
+    session: AsyncSession, token: str, password: str, confirm_password: str
+):
+    user_id = verify_email_token_and_get_user(token, "reset_token")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token"
+        )
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token"
+        )
+    stmt = select(User).where(User.id == user_id)
+    result = await session.scalars(stmt)
+    user = result.first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    user.hashed_password = hash_password(password)
+    session.add(user)
+    await session.commit()
+    return {"msg": "Password changed successfully"}

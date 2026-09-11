@@ -25,8 +25,7 @@ class UserLogin(BaseModel):
     password: str
 
 
-class ChangePassword(BaseModel):
-    current_password: str = Field(...)
+class BasePassword(BaseModel):
     new_password: str = Field(..., min_length=8)
     confirm_password: str = Field(..., min_length=8)
 
@@ -51,3 +50,15 @@ class ChangePassword(BaseModel):
         if self.confirm_password != self.new_password:
             raise ValueError("Confirm and new password must be same")
         return self
+
+
+class ChangePassword(BasePassword):
+    current_password: str = Field(...)
+
+
+class ResetPassword(BasePassword):
+    pass
+
+
+class ResetPasswordEmail(BaseModel):
+    email: EmailStr = Field(...)

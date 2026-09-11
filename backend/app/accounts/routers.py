@@ -1,17 +1,26 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from fastapi.responses import JSONResponse
-from app.accounts.schema import UserCreate, UserOut, UserLogin, ChangePassword
+from app.accounts.schema import (
+    ResetPassword,
+    ResetPasswordEmail,
+    UserCreate,
+    UserOut,
+    UserLogin,
+    ChangePassword,
+)
 from app.db.config import SessionDep
 from app.accounts.services import (
     change_user_password,
     email_verification_send,
     email_verify,
+    reset_user_password,
     user_create,
     authenticate_user,
     verify_email_token,
     verify_refresh_token,
+    verify_reset_password_token_email,
 )
 from app.accounts.utils import create_response_cookie, create_token
 from app.accounts.dependencies import get_current_user
@@ -94,3 +103,20 @@ async def change_password(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credential")
     return await change_user_password(session, password, user)
+
+
+@router.post("/reset-password")
+async def reset_password(
+    session: SessionDep,
+    user_email: ResetPasswordEmail,
+):
+    return await reset_user_password(session, user_email.email)
+
+
+@router.post("/reset-password/{token}")
+async def verify_reset_link(
+    session: SessionDep, token: Annotated[str, Path()], password: ResetPassword
+):
+    return await verify_reset_password_token_email(
+        session, token, password.new_password, password.confirm_password
+    )
