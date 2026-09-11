@@ -22,8 +22,12 @@ from app.accounts.services import (
     verify_refresh_token,
     verify_reset_password_token_email,
 )
-from app.accounts.utils import create_response_cookie, create_token
-from app.accounts.dependencies import get_current_user
+from app.accounts.utils import (
+    create_response_cookie,
+    create_token,
+    revoke_refresh_token,
+)
+from app.accounts.dependencies import get_current_user, require_admin
 from app.accounts.models import User
 
 router = APIRouter()
@@ -41,23 +45,7 @@ async def login(session: SessionDep, user: UserLogin) -> JSONResponse:
         raise HTTPException(status_code=401, detail="Invalid credential")
     tokens = await create_token(session, user)
     response = JSONResponse(content={"data": "Login Success"})
-    response.set_cookie(
-        key="access_token",
-        value=tokens["access_token"],
-        httponly=True,
-        secure=True,
-        samesite="Lax",
-        max_age=60 * 60 * 21 * 1,
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=tokens["refresh_token"],
-        httponly=True,
-        secure=True,
-        samesite="Lax",
-        max_age=60 * 60 * 21 * 1,
-    )
-    return response
+    return create_response_cookie(response, tokens)
 
 
 @router.get("/me", response_model=UserOut)
@@ -120,3 +108,20 @@ async def verify_reset_link(
     return await verify_reset_password_token_email(
         session, token, password.new_password
     )
+
+
+@router.get("/admin")
+async def admin(user: User = Depends(require_admin)) -> dict[str, str]:
+    return {"msg": f"Welcome admin {user.email}"}
+
+
+@router.post("/logout")
+async def logout(session: SessionDep, request: Request) -> JSONResponse:
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    await revoke_refresh_token(session, refresh_token)
+    response = JSONResponse(content={"detail": "Logged Out"})
+    response.delete_cookie("refresh_token")
+    response.delete_cookie("access_token")
+    return response

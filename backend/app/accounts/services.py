@@ -142,7 +142,7 @@ async def reset_user_password(session: AsyncSession, email: str):
     return {"msg": "Verification email sent"}
 
 
-async def verify_reset_token(session: AsyncSession, token: str):
+async def verify_reset_token(session: AsyncSession, token: str) -> ResetToken:
     stmt = select(ResetToken).where(ResetToken.token == token).with_for_update()
     result = await session.scalars(stmt)
     db_token = result.first()
@@ -159,7 +159,7 @@ async def verify_reset_token(session: AsyncSession, token: str):
 
 async def verify_reset_password_token_email(
     session: AsyncSession, token: str, password: str
-):
+) -> dict[str, str]:
     try:
         user_id = verify_email_token_and_get_user(token, "reset_token")
         if user_id is None:
