@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.accounts.routers import router as account_router
+from app.product.routers import router as product_router
 
 app = FastAPI(title="FastAPI backend")
 
@@ -10,3 +11,4 @@ def health() -> dict:
 
 
 app.include_router(account_router, prefix="/api/account", tags=["Accounts"])
+app.include_router(product_router, prefix="/api/product", tags=["Category"])
