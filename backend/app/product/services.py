@@ -1,7 +1,9 @@
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.product.schema import CategoryOut, CategoryCreate
-from app.product.models import Category
+from app.product.schema import CategoryOut, CategoryCreate, ProductCreate, ProductOut
+from app.product.models import Category, Product
 from sqlalchemy import select
+from app.product.utils import generate_slug, save_upload_file
 
 
 async def category_create(
@@ -27,3 +29,25 @@ async def remove_category(session: AsyncSession, category_id: int) -> bool:
     await session.delete(category)
     await session.commit()
     return True
+
+
+async def create_product(
+    session: AsyncSession, data: ProductCreate, image: UploadFile
+) -> ProductOut:
+    if data.stock < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stock quantity can not be less then 0",
+        )
+    image_path = await save_upload_file(upload_file=image, sub_dir="images")
+    if data.category_ids:
+        category_stmt = select(Category).where(Category.id.in_(data.category_ids))
+        category_result = await session.execute(category_stmt)
+        categories = category_result.scalars().all()
+    product_dict = data.model_dump(exclude={"category_ids"})
+    if not product_dict.get("slug"):
+        product_dict["slug"] = generate_slug(product_dict.get("title"))
+    new_product = Product(**product_dict, categories=categories, image_url=image_path)
+    session.add(new_product)
+    await session.commit()
+    return new_product

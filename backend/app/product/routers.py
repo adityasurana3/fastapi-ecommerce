@@ -1,8 +1,15 @@
-from fastapi import APIRouter, Depends, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Form, status, UploadFile, File
 
 from app.db.config import SessionDep
-from app.product.schema import CategoryOut, CategoryCreate
-from app.product.services import category_create, fetch_all_categories, remove_category
+from app.product.schema import CategoryOut, CategoryCreate, ProductCreate, ProductOut
+from app.product.services import (
+    category_create,
+    create_product,
+    fetch_all_categories,
+    remove_category,
+)
 from app.accounts.models import User
 from app.accounts.dependencies import require_admin
 from fastapi.exceptions import HTTPException
@@ -31,3 +38,24 @@ async def delete_category(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Category not found"
         )
+
+
+@router.post("/create-product", response_model=ProductOut)
+async def product_create(
+    session: SessionDep,
+    title: str = Form(...),
+    description: str = Form(...),
+    price: float = Form(...),
+    stock: int = Form(...),
+    categories: list[int] = Form(...),
+    image: Annotated[UploadFile | None, File()] = None,
+    user: User = Depends(require_admin),
+) -> ProductOut:
+    data = ProductCreate(
+        title=title,
+        description=description,
+        price=price,
+        stock=stock,
+        category_ids=categories,
+    )
+    return await create_product(session, data, image=image)
