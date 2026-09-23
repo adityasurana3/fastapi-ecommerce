@@ -31,15 +31,20 @@ async def remove_category(session: AsyncSession, category_id: int) -> bool:
     return True
 
 
+#### Products ####
+
+
 async def create_product(
-    session: AsyncSession, data: ProductCreate, image: UploadFile
+    session: AsyncSession, data: ProductCreate, image: UploadFile | None = None
 ) -> ProductOut:
     if data.stock < 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Stock quantity can not be less then 0",
         )
-    image_path = await save_upload_file(upload_file=image, sub_dir="images")
+    image_path = ""
+    if image is not None:
+        image_path = await save_upload_file(upload_file=image, sub_dir="images")
     if data.category_ids:
         category_stmt = select(Category).where(Category.id.in_(data.category_ids))
         category_result = await session.execute(category_stmt)
@@ -51,3 +56,9 @@ async def create_product(
     session.add(new_product)
     await session.commit()
     return new_product
+
+
+async def fetch_all_products(session: AsyncSession, current, number) -> ProductOut:
+    products = await session.execute(select(Product).offset(current).limit(number))
+    results = products.scalars().all()
+    return results
