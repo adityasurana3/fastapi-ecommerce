@@ -2,8 +2,9 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.product.schema import CategoryOut, CategoryCreate, ProductCreate, ProductOut
 from app.product.models import Category, Product
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.product.utils import generate_slug, save_upload_file
+from sqlalchemy.orm import selectinload
 
 
 async def category_create(
@@ -58,7 +59,18 @@ async def create_product(
     return new_product
 
 
-async def fetch_all_products(session: AsyncSession, current, number) -> ProductOut:
-    products = await session.execute(select(Product).offset(current).limit(number))
-    results = products.scalars().all()
-    return results
+async def fetch_all_products(
+    session: AsyncSession,
+    category_name: list[str] | None = None,
+    limit: int = 5,
+    page: int = 1,
+) -> dict:
+    stmt = select(Product).options(selectinload(Product.categories))
+    if category_name:
+        stmt.join(Product.categories).where(Category.name.in_(category_name)).distinct()
+    count_stmt = stmt.with_only_columns(func.count(Product.id)).order_by(None)
+    total = await session.scalar(count_stmt)
+    stmt = stmt.limit(limit).offset((page - 1) * limit)
+    result = await session.execute(stmt)
+    products = result.scalars().all()
+    return {"total": total, "page": page, "limit": limit, "items": products}

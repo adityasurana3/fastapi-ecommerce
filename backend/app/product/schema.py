@@ -29,4 +29,12 @@ class ProductCreate(ProductBase):
 class ProductOut(BaseModel):
     id: int
     title: str
+    categories: list[CategoryBase]
     model_config = {"from_attributes": True}
+
+
+class PaginatedProductOut(BaseModel):
+    total: int
+    page: int
+    limit: int
+    items: list[ProductOut]

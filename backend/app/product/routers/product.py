@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Query, UploadFile, File
 
 from app.db.config import SessionDep
-from app.product.schema import ProductCreate, ProductOut
+from app.product.schema import PaginatedProductOut, ProductCreate, ProductOut
 from app.product.services import create_product, fetch_all_products
 from app.accounts.models import User
 from app.accounts.dependencies import require_admin
@@ -32,6 +32,11 @@ async def product_create(
     return await create_product(session, data, image=image)
 
 
-@router.get("", response_model=list[ProductOut])
-async def fetch_products(session: SessionDep, current: int = 0, number: int = 10):
-    return await fetch_all_products(session, current, number)
+@router.get("", response_model=PaginatedProductOut)
+async def fetch_products(
+    session: SessionDep,
+    categories: list[str] | None = Query(default=None),
+    limit: int = Query(default=5, gt=1, le=100),
+    page: int = Query(default=1, ge=1),
+):
+    return await fetch_all_products(session, categories, limit, page)
