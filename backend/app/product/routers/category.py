@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, status
 
 from app.db.config import SessionDep
