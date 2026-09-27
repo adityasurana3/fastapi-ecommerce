@@ -1,10 +1,23 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Query, UploadFile, File
+from fastapi import (
+    APIRouter,
+    Depends,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    File,
+    status,
+)
 
 from app.db.config import SessionDep
 from app.product.schema import PaginatedProductOut, ProductCreate, ProductOut
-from app.product.services import create_product, fetch_all_products
+from app.product.services import (
+    create_product,
+    fetch_all_products,
+    fetch_product_by_slug,
+)
 from app.accounts.models import User
 from app.accounts.dependencies import require_admin
 
@@ -40,3 +53,13 @@ async def fetch_products(
     page: int = Query(default=1, ge=1),
 ):
     return await fetch_all_products(session, categories, limit, page)
+
+
+@router.get("/{slug}", response_model=ProductOut)
+async def get_product(session: SessionDep, slug: str) -> ProductOut:
+    product = await fetch_product_by_slug(session, slug)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+    return product

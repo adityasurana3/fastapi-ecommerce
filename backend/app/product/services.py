@@ -74,3 +74,13 @@ async def fetch_all_products(
     result = await session.execute(stmt)
     products = result.scalars().all()
     return {"total": total, "page": page, "limit": limit, "items": products}
+
+
+async def fetch_product_by_slug(session: AsyncSession, slug: str) -> ProductOut | None:
+    stmt = (
+        select(Product)
+        .options(selectinload(Product.categories))
+        .where(Product.slug == slug)
+    )
+    result = await session.execute(stmt)
+    return result.scalar()
