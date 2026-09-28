@@ -17,6 +17,7 @@ from app.product.services import (
     create_product,
     fetch_all_products,
     fetch_product_by_slug,
+    search_product,
 )
 from app.accounts.models import User
 from app.accounts.dependencies import require_admin
@@ -53,6 +54,22 @@ async def fetch_products(
     page: int = Query(default=1, ge=1),
 ):
     return await fetch_all_products(session, categories, limit, page)
+
+
+@router.get("/search", response_model=PaginatedProductOut)
+async def search(
+    session: SessionDep,
+    categories: list[str] | None = Query(default=None),
+    title: str | None = Query(default=None),
+    description: Annotated[str, Query()] | None = None,
+    min_price: Annotated[float, Query()] | None = None,
+    max_price: Annotated[float, Query()] | None = None,
+    limit: int | None = Query(default=5, gt=1),
+    page: int | None = Query(default=1, gte=1),
+) -> PaginatedProductOut:
+    return await search_product(
+        session, categories, title, description, min_price, max_price, limit, page
+    )
 
 
 @router.get("/{slug}", response_model=ProductOut)

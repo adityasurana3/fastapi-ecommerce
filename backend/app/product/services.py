@@ -1,8 +1,14 @@
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.product.schema import CategoryOut, CategoryCreate, ProductCreate, ProductOut
+from app.product.schema import (
+    CategoryOut,
+    CategoryCreate,
+    PaginatedProductOut,
+    ProductCreate,
+    ProductOut,
+)
 from app.product.models import Category, Product
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from app.product.utils import generate_slug, save_upload_file
 from sqlalchemy.orm import selectinload
 
@@ -84,3 +90,39 @@ async def fetch_product_by_slug(session: AsyncSession, slug: str) -> ProductOut 
     )
     result = await session.execute(stmt)
     return result.scalar()
+
+
+async def search_product(
+    session: AsyncSession,
+    categories: list[str] | None,
+    title: str | None,
+    description: str | None,
+    min_price: float | None,
+    max_price: float | None,
+    limit: int,
+    page: int,
+) -> PaginatedProductOut:
+    stmt = select(Product).options(selectinload(Product.categories))
+    if categories:
+        stmt.join(Product.categories).where(Category.name.in_(categories)).distinct()
+    filters = []
+    if title:
+        filters.append(Product.title.ilike(f"%{title}%"))
+    if description:
+        filters.append(Product.description.ilike(f"%{description}%"))
+    if min_price:
+        filters.append(Product.price <= min_price)
+    if max_price:
+        filters.append(Product.price >= max_price)
+    if filters:
+        stmt = stmt.where(and_(*filters))
+    count_stmt = stmt.with_only_columns(func.count(Product.id)).order_by(None)
+    total = await session.scalar(count_stmt)
+    stmt = stmt.limit(limit).offset((page - 1) * limit)
+    result = await session.execute(stmt)
+    products = result.scalars().all()
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+    return {"total": total, "page": page, "limit": limit, "items": products}
