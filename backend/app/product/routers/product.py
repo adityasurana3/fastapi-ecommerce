@@ -12,11 +12,17 @@ from fastapi import (
 )
 
 from app.db.config import SessionDep
-from app.product.schema import PaginatedProductOut, ProductCreate, ProductOut
+from app.product.schema import (
+    PaginatedProductOut,
+    ProductCreate,
+    ProductOut,
+    ProductUpdate,
+)
 from app.product.services import (
     create_product,
     fetch_all_products,
     fetch_product_by_slug,
+    product_update,
     search_product,
 )
 from app.accounts.models import User
@@ -78,5 +84,32 @@ async def get_product(session: SessionDep, slug: str) -> ProductOut:
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+    return product
+
+
+@router.patch("/update-product/{product_id}", response_model=ProductOut)
+async def update_product(
+    session: SessionDep,
+    product_id: int,
+    title: str | None = Form(None),
+    description: str | None = Form(None),
+    price: float | None = Form(None),
+    stock_quantity: int | None = Form(None),
+    image_url: UploadFile | None = File(None),
+    categories_ids: Annotated[list[int], Form(None)] | None = None,
+    user: User = Depends(require_admin),
+) -> ProductOut:
+    product_data = ProductUpdate(
+        title=title,
+        description=description,
+        price=price,
+        stock_quantity=stock_quantity,
+        categories_ids=categories_ids,
+    )
+    product = await product_update(session, product_id, product_data, image_url)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not fount"
         )
     return product

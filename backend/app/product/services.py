@@ -6,6 +6,7 @@ from app.product.schema import (
     PaginatedProductOut,
     ProductCreate,
     ProductOut,
+    ProductUpdate,
 )
 from app.product.models import Category, Product
 from sqlalchemy import select, func, and_
@@ -126,3 +127,34 @@ async def search_product(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
     return {"total": total, "page": page, "limit": limit, "items": products}
+
+
+async def product_update(
+    session: AsyncSession,
+    product_id: int,
+    data: ProductUpdate,
+    image_url: UploadFile | None = None,
+) -> ProductOut:
+    stmt = (
+        select(Product)
+        .options(selectinload(Product.categories))
+        .where(Product.id == product_id)
+    )
+    result = await session.execute(stmt)
+    product = result.scalar_one_or_none()
+    if not product:
+        return None
+    if data.categories_ids is not None:
+        category_stmt = select(Category).where(Category.id.in_(data.categories_ids))
+        category_result = await session.execute(category_stmt)
+        product.categories = category_result.scalars().all()
+    for key, value in data.model_dump(
+        exclude={"categories_ids"}, exclude_none=True
+    ).items():
+        setattr(product, key, value)
+    if image_url is not None:
+        image_path = await save_upload_file(image_url, sub_dir="images")
+        product.image_url = image_path
+    await session.commit()
+    await session.refresh(product)
+    return product
